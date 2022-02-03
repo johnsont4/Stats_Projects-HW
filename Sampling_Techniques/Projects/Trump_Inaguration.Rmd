@@ -1,0 +1,122 @@
+---
+title: "Short Report: Trump's Innaguration"
+author: "Teagan Johnson and Kevin Chen"
+date: "1/19/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Abstract\
+	In this report, we use stratified sampling to estimate the size of a pseudo crowd. To do this, we sample fixed-sized rectangular blocks from an R generated plot of the crowd, count the number of people in these blocks, and use these numbers to calculate an estimate of the total size of the crowd along with its margin of error.
+	
+#### Introduction\
+	Donald Trump, known for his controversial and often inaccurate statements, claimed that his inauguration ceremony attracted “well over 1 million people.” Trump’s claim was supplemented by his press secretary, Sean Spicer, who asserted that this was the largest crowd to ever attend an inauguration. This claim proved controversial after an aerial picture of the inauguration with seemingly much fewer people was published on many popular media sites. This incident motivates our investigation here, where we attempt to estimate the total size of a pseudo crowd using a stratified random sample.
+	
+#### Methodology\
+	The population we studied was the number of dots on the R generated graph (see below). The sampling units in our study were 120 ft. x 250 ft. sized boxes. The total number of sampling units in our population was 57 boxes (not including the blank column in the middle). Our sampling frame was all 57 of the boxes in the population.
+	
+Our sampling design consisted of us taking a stratified random sample of the population. Looking at the R generated population, we determined there were two strata: the top and bottom half of the crowd. The sampling unit measurements are heterogeneous between the upper and lower sections of the population, as the upper strata is less condensed while the lower is more condensed. This was enough evidence for us to determine that a stratified random sample had the potential to give us a more precise estimation of the population.
+
+To conduct our survey, we needed to find the sample size for each stratum. To do this, we estimated the margin of error (e) and the sample standard deviation (s) for each strata. We estimated a separate e value for both the upper and the lower stratum by conducting a “pilot sample” on each stratum (we randomly selected 3 sampling units from each stratum). The average number of people in the sampling units was 91 for the upper stratum and 157 for the lower stratum. We wanted our margin of error to be less than 5%, which results in an e value of 7.85 and 4.55 for the lower and upper stratum, respectively. To estimate s (there were no past studies to estimate the sample standard deviation), we decided to use a conservative estimate by dividing the range of response values in each stratum by four. We determined the maximum response in the lower stratum by selecting a sampling unit that was close to the horizontal center line; we did this because the overall trend in the population was that the response values get larger as the y-value decreases. Similarly, we estimated the minimum value in the lower stratum and the max/min values in the upper stratum. We found 7.5 and 6 to be the values for s in the top stratum and the bottom stratum, respectively. 
+Given our estimated e and s values, we use the SRS sample size calculation and find the sample size for the upper stratum to be 8 boxes and 3 boxes for the lower stratum. After we determined the sample sizes, we found the sample means for each stratum. Then, we were able to calculate an estimated value along with standard errors of the total population for the strata.
+
+#### Results\
+	Our estimate for the total number of people in the R generated population was 7486
+with a standard error of 115.45. Constructing a 95% confidence interval, we obtain [7259, 7711]. We are 95% confident that the true population total for the pseudo crowd is between 7259 and 7711.
+
+#### Discussion\
+For this R generated graph of a pseudo crowd, we estimate the total number of people to be 7486, but it could reasonably range from 7259 to 7711. Given the two heterogeneous strata, we’re confident that our stratified random sampling design gave us a more precise and accurate estimate than a normal SRS random sampling design.
+Because of the manual data collection and the lack of previous studies using this pseudo crowd, there were some difficulties we faced and there are some potential reasons for error. First, counting the dots is a laborious process and it’s possible that we miscounted some of the boxes during our analysis; this could have been a source of error. Although this is a potential source of error, it is not necessarily a source of bias since miscounting the number of dots in each box does not skew the data one way or the other. Another difficulty was that we had to estimate the sample standard deviations for both strata. There were no previous studies conducted on this pseudo crowd, so we decided to use a conservative estimation approach by attempting to get the minimum and maximum values from each strata and dividing it by four. It’s possible we didn’t choose the actual minimum and maximum values of each strata, which may have led to another error. Again, this is not necessarily a source of bias since picking an incorrect maximum/minimum value does not skew the data in one way or another.
+
+#### Appendix\
+
+```{r}
+# The first step is to find the sample sizes for both strata (upper and lower).
+# First, we find the range of y in both strata to find s. This is done by taking the boxes with seemingly the highest/lowest number of points.
+top_strata_hi <- 110
+top_strata_lo <- 80
+bottom_strata_hi <- 171
+bottom_strata_lo <- 147
+
+# Next, we calculate the margin of error for each strata. We do this by taking a pilot sample of 3 randomly selected sampling units from each strata
+avg_response_lower <- sum(c(148, 162, 161))/3 # This is the average response for our pilot sample (n=4)
+avg_response_upper <- sum(c(82, 89, 102))/3
+N <- 109 # 109 is the total number of boxes in both the strata combined
+
+# Upper strata
+s_top <- (top_strata_hi-top_strata_lo)/4 # sample s.d. using conservative estimate
+moe_upper <- avg_response_upper*.05 # We wanted our margin of error to be within 5% of the sampling units
+n_0_top <- (((s_top)*1.96)/moe_upper)^2
+n_top <- n_0_top/(1+n_0_top/(N/2)) # n_top = 3.998
+
+# Lower strata
+s_bottom <- (bottom_strata_hi-bottom_strata_lo)/4 # sample s.d. using conservative estimate
+moe_lower <- avg_response_lower*.05 # We wanted our margin of error to be within 5% of the sampling units
+n_0_bottom <- (((s_bottom)*1.96)/moe_lower)^2
+n_bottom <- n_0_bottom/(1+n_0_bottom/(N/2)) # n_bottom = 5.006
+
+# Sample size for top and bottom
+n_top
+n_bottom
+
+# So, rounding, we get...
+top_samp_num <- 8 # We rounded down because counting more than 8 boxes is a lot...
+bot_samp_num <- 3
+```
+
+```{r}
+# Calculate the strata estimates based off samples
+top_samples <- c(110, 81, 87, 95, 105, 111, 92, 96) # 8 random samples from the top strata
+bottom_samples <- c(167, 150, 166) # 3 random samples from the bottom strata
+top_sample_mean <- sum(top_samples) / top_samp_num # average number of people in each top strata sampling unit
+bot_sample_mean <- sum(bottom_samples) / bot_samp_num # average number of people in each bottom strata sampling unit
+
+# Sample means
+top_sample_mean
+bot_sample_mean
+```
+
+```{r}
+# Estimating total
+top_strata_total <- top_sample_mean*(N/2)
+bot_strata_total <- bot_sample_mean*(N/2)
+
+# Total number of people
+total <- top_strata_total + bot_strata_total
+total
+```
+
+```{r}
+# SE calculations
+top_SE_indiv <- (N/2)^2 * (1-(top_samp_num/(N/2))) * (s_top^2/top_samp_num) # SE for top box without sqrt
+bot_SE_indiv <- (N/2)^2 * (1-(bot_samp_num/(N/2))) * (s_bottom^2/bot_samp_num) # SE for bottom box without sqrt
+SE_total <- sqrt(top_SE_indiv+bot_SE_indiv) # Sum the top and bottom SEs and take the square root. Then divide it by the population (N)
+
+# Total SE for the population
+SE_total
+```
+
+```{r}
+# Confidence Intervals
+# Assuming we want to be 95% confident, we use 1.96 as the z-score
+up <- total + 1.96*SE_total
+lo <- total - 1.96*SE_total
+
+up # Upper bound
+lo # Lower bound
+```
+
+```{r}
+# Creating a histogram of values
+lower_samples <- runif(10000, min=80, max=110)
+upper_samples <- runif(10000, min=147, max=171)
+
+```
+
+```{r}
+boxplot(lower_samples, upper_samples, main="Lower vs. Upper Strata Measurements", xlab="Type of Strata", ylab="Number of Dots in Sampling Unit")
+```
+
