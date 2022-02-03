@@ -1,0 +1,132 @@
+---
+title: "Short Report 1"
+author: 'Name: Teagan Johnson'
+output:
+  pdf_document:
+    fig_caption: yes
+  html_document:
+    df_print: paged
+  
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, collapse=TRUE, prompt=TRUE, comment=NULL)
+```
+
+# The Dramatic U.S. Presidential Election of 2000
+### *Teagan Johnson*
+
+#### Introduction \
+The U.S. presidential election of November 7, 2000, was one of the closest in history. As the night went on, it became clear that whichever candidate won Florida would become the next president. After a back and forth battle between Al Gore (the Democratic candidate) and George Bush (the Republican candidate) it was determined that George Bush was the winner. Controversy ensued however. The voting ballots given to voters in one county in Florida, Palm Beach County, were thought to be confusing and could have shifted votes in favor of Bush by making it easy for people to vote for Buchanan (a 3rd party candidate) rather than who they actually wanted to vote for, Al Gore. Analyzing the results of the election using scatterplots, linear models, and other statistical tools, we can make statistical assumptions about the legitimacy of Palm Beach County's voting process. \
+
+#### Results \
+First, looking at the scatterplot of all of Florida's counties voting results shows a clear outlier. Towards the middle of the x axis, there is a point that has many more votes for Buchanan than any other points with a similar number of votes for Bush. This point represents Palm Beach Springs, the county with the alleged confusing voting ballots. \
+\
+```{r votingD, fig.width = 6, fig.height = 3, echo=FALSE, fig.cap="Figure 1"}
+library(ggResidpanel)
+library(Sleuth3)
+library(scales)
+library(dplyr)
+library(ggplot2)
+ggplot(data=ex0825, aes(x=Bush2000, y=Buchanan2000)) + geom_point() + labs(x="Number of votes for Bush", y="Number of votes for Buchanan", title="Number of votes for Bush vs. number of votes for Buchanan") + scale_x_continuous(labels = comma)
+```
+
+In order to analyze the data, we input the voting results into a linear model. Linear models allow us to analyze data accurately and cleanly. Bushs' voting totals represent the x-axis and Buchanans' represent the y-axis.  \
+
+Before conducting our analysis, we must make sure that the four statistical assumptions about linear models hold. Looking at the residual plot of the data, the data points barely meet the lineraity assumption (the response variable, in this case Buchanan's total votes, is linearly related with the explanatory variable, or Bush's total votes). To meet the linearity assumption, we must transform the data. It turns out logging both the x and y values creates the most linear model. The independence, normal, and constant variance assumptions are all met with the logged data as well. \
+
+Next, to see how unusual Palm Beach County's results were, I created a new data set that excluded Palm Beach County. This allows us to make a prediction based on all of the other data points excluding Palm Beach County. We see that the predicted logged number of votes is 6.384143 with a 95% confidence interval of 5.524656 to 7.24363. Exponentiating these values gives us the true predicted results. The expected number of votes for Buchanan, if Bush receives 152846 votes, is 593 votes. We are 95% confident that if Bush receives 152846 votes, Buchanan will receive between 251 and 1400 votes. See the prediction band plot below. \
+
+```{r predInt, fig.width = 6, fig.height = 3, echo=FALSE, fig.cap="Figure 2"}
+voting_no_outliers <- ex0825[-c(67), ]
+
+voting_no_outlier_lm <- lm(Buchanan2000 ~ Bush2000, voting_no_outliers)
+
+voting_data_pred <- data.frame(voting_no_outliers, predict(voting_no_outlier_lm, interval = "prediction"))
+
+ggplot(
+  voting_data_pred, aes(x=Bush2000, y=Buchanan2000)) + 
+  geom_point() + 
+  geom_smooth(method="lm") + 
+  labs(x="Number of votes for Bush", y="Number of votes for Buchanan", title="Number of votes for Bush vs. Number of votes for Buchanan") + 
+  geom_ribbon(
+    aes(ymin = lwr,
+        ymax = upr,
+        fill = "prediction"),
+    alpha = .1)
+```
+
+The observed results for Palm Beach County was 3407 votes and the standard error was 1.651936. This means the observed result was 2062.429 standard deviations away from our expected value. This leads to a p-value of 9.665169e-161 which is basically zero. \
+
+#### Discussion \
+Our p-value for the observed number of votes for Buchanan when Bush receives 152846 votes is basically zero. This means that assuming the expected value is 593 votes, there is a probability of 0 that we would see our observed result of 3407 votes. We can conclude that there is no way Buchanan would have received this many votes just by chance. Our conclusion may lead one to wonder if the ballots really were confusing and dictated the result of Palm Beach County's voting record. \
+
+But how many votes of Buchanan's could theoretically have been meant for Al Gore? Looking at our confidence interval, we are 95% confident that if Bush receives 152846 votes, that Buchanan will receive between 251 and 1400 votes. Buchanan actually received 3407 votes. Using the 95% confidence interval and Buchanan's observed votes, we can construct a confidence interval to help us determine how many of Buchanan's votes were potentially meant for Gore. The lower bound of the interval will be 2007 (3407 - 1400 = 2007) and the upper bound will be 3156 (3407 - 251 = 3156). This gives us a 95% confidence interval of 2007 to 3156. We are 95% confident that of the 3407 votes for Buchanan, between 2007 and 3156 of them were potentially meant for Gore. \
+
+Coupling this with the 19,000 discarded ballots due to multiple answers and there are potentially more than 20,000 votes that were potentially taken away from Gore. Had Gore received these 20,000 votes instead of Buchanan in Palm Beach County, it is possible that Gore would have won Palm Beach County, which could have allowed him to win Florida, which could have allowed him to win the whole election. \
+
+#### Appendix \
+Below is the R code used to produce results in the results section. There are comments above each of the major functions and aspects of the code.
+
+```{r}
+# This is the original scatterplot of Bush votes vs. Buchanan votes
+ggplot(data=ex0825, aes(x=Bush2000, y=Buchanan2000)) + geom_point() + labs(x="Number of votes for Bush", y="Number of votes for Buchanan", title="Number of votes for Bush vs. number of votes for Buchanan") + scale_x_continuous(labels = comma)
+```
+
+```{r}
+# Plot of data with no outliers
+# which(ex0825$Buchanan2000 > 3000)
+voting_no_outliers <- ex0825[-c(67), ]
+ggplot(data=voting_no_outliers, aes(x=Bush2000, y=Buchanan2000)) + geom_point() + labs(x="Number of votes for Bush", y="Number of votes for Buchanan", title="Number of votes for Bush vs. number of votes for Buchanan") + scale_x_continuous(labels = comma)
+
+# unlogged no outlier resid plot
+voting_no_outlier_lm <- lm(Buchanan2000 ~ Bush2000, voting_no_outliers)
+resid_xpanel(voting_no_outlier_lm)
+
+# logged no outlier resid plot
+voting_no_outlier_log_lm <- lm(log(Buchanan2000) ~ log(Bush2000), voting_no_outliers)
+resid_xpanel(voting_no_outlier_log_lm)
+```
+
+```{r}
+# Palm Beach Row (actual x and y values)
+ex0825[c(67), ]
+```
+
+```{r}
+library(broom)
+tidy(voting_no_outlier_log_lm)
+# Find the expected value given Bush receives 152846 votes, also get the se.fit and residual.scale values which help us find the standard error
+predict(voting_no_outlier_log_lm, data.frame(Bush2000=152846), interval = "prediction", se.fit = TRUE)
+
+# This is the standard error of the model without the outlier
+sqrt(exp(0.09416562)^2 + exp(0.4198003))
+
+# Number of standard deviations away from mean
+(3407/1.651936)
+
+# Find the p value
+pt(-2062.429, 66)
+```
+
+```{r}
+# Original
+election_lm <- lm(Buchanan2000 ~ Bush2000, ex0825)
+resid_xpanel(election_lm)
+resid_panel(election_lm, plots="qq")
+
+# Log of both x and y
+election_log_lm <- lm(log(Buchanan2000) ~ log(Bush2000), ex0825)
+resid_xpanel(election_log_lm)
+resid_panel(election_log_lm, plots="qq")
+
+# Log of y
+election_log_y_lm <- lm(Buchanan2000 ~ log(Bush2000), ex0825)
+resid_xpanel(election_log_y_lm)
+resid_panel(election_log_y_lm, plots="qq")
+
+# Log of x
+election_log_x_lm <- lm(log(Buchanan2000) ~ Bush2000, ex0825)
+resid_xpanel(election_log_x_lm)
+resid_panel(election_log_x_lm, plots="qq")
+```

@@ -1,0 +1,117 @@
+---
+title: "Stat 230 HW 7"
+author: "Name: Teagan Johnson"
+output: html_document
+---
+```{r, include=FALSE}
+knitr::opts_chunk$set(collapse=TRUE, prompt=FALSE, comment=NULL, warning = FALSE, message = FALSE)
+```
+
+
+### worked with: 
+
+
+Homework 6 is due **by 3pm Wednesday, Nov. 10**. Please complete the assignment in this Markdown document, filling in your answers and R code below.  I didn't create answer and R chunk fields like I did with homework 1, but please fill in your answers and R code in the same manner as hw 1.  Submit  a hard copy of the **compiled pdf or word doc** either
+
+  - in class 
+  - in drop-in office hours 
+  - in the paper holder outside my CMC 222 office door
+
+Tips for using Markdown with homework sets:
+
+- Work through a problem by putting your R code into R chunks in this .Rmd. Run the R code to make sure it works, then knit the .Rmd to verify they work in that environment.
+    - Make sure you load your data in the .Rmd and include any needed `library` commands. 
+- Feel free to edit or delete  questions, instructions, or code provided in this file when producing your homework solution. 
+- For your final document, you can change the output type from `html_document` to `word_document` or `pdf_document`. These two to output types are better formatted for printing. 
+  - on maize: you may need to allow for pop-ups from this site 
+- If you want to knit to pdf while running Rstudio from your computer (*not* from maize), you  will need a LaTeX compiler installed on your computer. This could be [MiKTeX](https://miktex.org/), [MacTeX](http://www.tug.org/mactex/) (mac), or TinyTex. The latter is installed in R: first install the R package `tinytex`, then run the command `tinytex::install_tinytex()` to install this software. 
+  - If you are using maize, you don't need to install anything to knit to pdf!
+
+
+-------------------------
+
+
+## Problem 1: Salk Vaccine Field Trials of 1954
+The Salk Vaccine Trial is one of the most famous, and largest, clinical trial ever conducted. This study showed that a vaccine composed of killed polio viruses could inoculate people against polio.  Another major outcome of this trial was to "prove" the benefit of placebo-controlled, randomized experimental designs that are now the "gold standard" in clinical trials. In this problem you will analyze the data from this experiment. 
+
+Experimental Design: In 11 states parents of first, second, and third graders were asked for permission to enroll their child into the trial (consent: 401,974 said yes and 338,778 said no). Then, of the 401,974 students who had parental consent, about half (200,745) were randomly assigned to be injected with the vaccine while the other half (201,229) were injected with a saline solution (vaccine: yes or no). The R commands below give the number of polio cases (`y`) out of the number of kids (`m`) in each combination of `consent` and `vaccine`. Obviously, no kids were given the vaccine if they did not have parental consent, so there are only 3 combinations of these variables. 
+
+```{r}
+m <- c(200745, 201229, 338778)
+y <- c(33,115,121)
+consent<- c("yes","yes","no")
+vaccine <- c("yes","no","no")
+salk<- data.frame(m,y,consent,vaccine)
+head(salk)
+```
+
+### (1a) Fit the binomial logistic regression of `y` on `consent` and `vaccine`. After accounting for parental consent, what effect does the vaccine have on the odds of getting polio? Compute and interpret a 95% confidence interval for this effect. (Note that this is a causal effect since the vaccine was randomly assigned to consenting kids.)
+
+*Answer: * \
+
+The estimated odds of getting polio is $e^{-7.93695+0.47026consentyes-1.24642vaccineyes}$ \
+The odds ratio of having the vaccine vs. not having the vaccine on getting polio is $odds(vaccine, consent)/odds(novaccine, consent) = \frac{e^{-7.93695+0.47026consentyes-1.24642vaccineyes}}{e^{-7.93695+0.47026consentyes}}$ \
+So having a vaccine decreases the odds of getting polio by 71.25%.
+
+```{r}
+salk_glm <- glm(y/m ~ consent*vaccine, family=binomial, weights=m, data=salk)
+summary(salk_glm)
+(exp(-7.93695+0.47026-1.24642))/(exp(-7.93695+0.47026))
+1-0.2875323
+# LOOK AT 4.9
+(2^(0.2875323 + c(-1,1)*qnorm(.975)*0.05485) - 1)
+```
+
+### (1b) After accounting for vaccine treatment, what effect does  parental consent have on the odds of getting polio? Compute and interpret a 95% confidence interval for this effect. (Note that this is not a causal effect since parental consent was not randomly assigned to kids.)
+
+### (1c) Some details about polio: Researchers knew that when raised in unsanitary conditions, babies could actually build a natural immunity to polio when mildly exposed to it. This immunity made them less susceptible to the severe strain of the disease as they grow. Children who were protected from this exposure by clean surroundings did not usually build this immunity and were more likely to get the disease.  Demographic data collected during the experiment showed that kids with no parental consent had similar family backgrounds. Records showed that these kids tended to come from lower income households compared to kids whose parents did consent. Use this information to try to explain the parental consent effect you quantified in part (b). 
+
+
+
+-----------------------------------------
+
+
+## Problem 2: Vitamin C Chapter 21 exercise 12 (a-c)
+You'll need to enter the data for this example by hand. You can use code similar to that used in Problem 2 above to do so. 
+
+
+-----------------------------------------
+
+
+
+## Problem 3: Vitamin C:  ch. 21 exercise 13 (a-c)
+The data for this problem is `ex2113`.
+
+
+
+-----------------------------------------
+
+
+
+## Problem 4: Death Penalty and Race:  ch. 21 exercise 10 (a-e)
+This data set is `case1902`.
+
+
+-----------------------------------------
+
+
+## Problem 5: Space Shuttle Challenger (article assigned reading)  
+The data set `challenger.csv` contains the o-ring data presented in Table 1 of the Dalal, Fowlkes, and Hoadley paper. The observations (rows) in this data set are flights taken under various conditions. The variables are `temperature` (ambienent temp in Farenheit), `pressure` (field leak-check pressure), `nozzle.pres` (nozzle leak-check pressure), `damaged` (number of damaged  o-rings); `number` (number of o-rings each launch), and `incident` (indicates whether at least one o-ring was damaged (1) or if no o-rings were damaged (0)).
+
+```{r}
+chall <- read.csv("http://people.carleton.edu/~kstclair/data/challenger.csv")
+```
+
+
+### (5a) Recreate Figure 1b by plotting the number of damaged o-rings vs. temperature. You will need to jitter the points since some overlap so use `geom_jitter(height = .05)`. Why does omitting the 0 damage incident flights (Figure 1a) obscure the relationship between temperature and o-ring performance?
+
+### (5b)  The first regression model considered in section 3.1 was a  regression for the number of damaged o-rings. Given a particular temperature and pressure (X-values), we model $Y=$ the number damaged  as a binomial random variable with parameters $m$ and $\pi(X)$. What is $m$ equal to for this model? What is $\pi(X)$ the probability of?
+
+### (5c)   Fit the  logistic regression of `damaged` on `temperature` and `pressure`. (You can verify that your coefficient estimates, SEs, and residual deviance match the article's numbers (pg. 948).) Is temperature significance after accounting for pressure? Is pressure significance after accounting for temperature?
+
+
+### (5d)   Conduct a goodness-of-fit test for the part (c) model. Do we have any evidence for extra-binomial variation? Can we trust this test result? (e.g. are the assumptions needed to trust this test met?)
+
+### (5e)    Fit the  logistic regression of `damaged` on  `temperature` and use this model to plot the estimated probability of o-ring failure as a function of temperature for temps ranging from 30 to 90 degrees. To extend the `geom_smooth` to these limits, add the layers `xlim(30, 90) + ylim(0,1)` *before* the `geom_smooth` and add the argument `fullrange=TRUE` to `geom_smooth`.
+
+### (5f)   Use your model from part (e) to predict the probability that an o-ring fails at a temperature of 31 degrees (the temp the morning of the Challenger launch). Knowing that o-ring failure can result in catastrophic damage, would you have advised NASA to launch the Challenger that morning? 
