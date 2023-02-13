@@ -1,10 +1,12 @@
-# Movie/TV Show Analysis
+# See Below for Project Details
 
-## Link:
+## Movie/TV Show Analysis
+
+### Link:
 
 [Shiny link](https://johnsont4.shinyapps.io/final-project-benturner-teaganjohnson-kentahikino/)
 
-## Technical Report:
+### Technical Report:
 
 Movies and TV shows have been a large part of the entertainment industry for more than a century. In recent times, both (especially TV shows) have become exponentially more popular. This is in large part due to the massive growth of streaming services like Netflix and Amazon Prime. We were interested in seeking out trends with movies and TV shows along with their directors, release years, and any other interesting data points. To do this, we acquired 9 data sets from 9 different streaming services (Amazon Prime, Netflix, Disney+, Paramount+, Hulu, HBO Max, Dark Matter, Crunchyroll, and Rakuten). Below is a description of the technical work of our project.
 
@@ -18,8 +20,8 @@ Using the machine learning model, we were able to predict “great” movies wit
 
 The final dataset was then used to create an interactive Shiny website. We included a home page that includes some basic EDA, 3 pages that contain interactive time series plots, and a page where users can input their own information and receive feedback about whether their movie will be great or not.
 
-# Jury Strike Analysis
+## Jury Strike Analysis
 
-## Link:
+### Link:
 
 [Shiny link](https://johnsont4.shinyapps.io/mini-project-2-team-1/)
