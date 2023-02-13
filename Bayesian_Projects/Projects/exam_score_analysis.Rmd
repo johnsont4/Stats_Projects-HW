@@ -1,0 +1,295 @@
+---
+title: "Case Study 1: Exam Score Estimation"
+author: "Teagan Johnson"
+date: "2022-10-21"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r, include=FALSE}
+library(ggplot2)
+library(ggthemes)
+```
+
+```{r setup, include=FALSE}
+scores <- read.csv("http://aloy.rbind.io/data/test_scores.csv")
+```
+
+```{r, include=FALSE}
+# data
+y <- scores$score
+n <- length(y)
+# Prior specification
+mu0  <- 85
+phi0 <- 1/1000
+a    <- 0.1
+b    <- 0.1
+# Initial parameter values
+mu  <- mean(y)
+s2  <- var(y)
+phi <- 1 / s2
+# Create empty S x p matrix for MCMC draws
+S                    <- 5000
+mcmc_draws           <- matrix(NA, nrow = S, ncol = 2)
+colnames(mcmc_draws) <- c("mu", "phi")
+```
+
+```{r,include=FALSE}
+for(i in 1:S) {
+  # sample from mu | s2, y
+  A   <- sum(y) * phi + mu0 * phi0
+  B   <- n * phi + 1 * phi0
+  mu  <- rnorm(1, A/B, 1/sqrt(B))
+  
+  # sample from s2 | mu, y
+  shape <- n / 2 + a
+  rate  <- (sum((y - mu)^2) / 2) + b
+  phi   <- rgamma(1, shape, rate)
+  
+  # Store the draws
+  mcmc_draws[i, ] <- c(mu, phi)
+}
+
+mcmc_draws <- data.frame(mcmc_draws)
+```
+
+# Introduction
+
+In this study, I aim to estimate the mean exam 1 score for students in Professor Adam Loy's Stat 120 class, along with the standard deviation. To do so, I implement the Gibbs sampler algorithm. I also predict the exam 1 score of a randomly selected student. I am given access to 29 exam 1 scores from Adam's Stat 120 class. \
+
+The Gibbs Sampler algorithm, like other MCMC algorithms, generates a Markov chain of samples. The Gibbs sampler is a general way to sample from a posterior distribution from the full conditional posterior distributions. It is a logical choice for this distribution since we can easily compute the conditional posterior distributions for $\mu$ (the mean test score) and $\phi$ (1/standard deviation of test scores). We use $\phi$ instead of $\sigma$ in this analysis because it simplifies some equations later on. At the end of this analysis, I convert $\phi$ back to $\sigma$ to produce meaningful results. \
+
+# Methods
+
+Before we implement the Gibbs sampler, we need to specify weakly informative priors for both $\mu$ and $\phi$. Weakly informative priors will allow us to get the analysis started and will give us flexibility to change the priors if the posterior distribution does not seem correct. \
+
+Based on my own prior knowledge of Carleton statistics classes, I believe the average exam score to be 85/100 ($\mu_0=85$) with a normal distribution. To ensure the posterior is pushed towards the likelihood (our sample of test scores, $y$), I specify that $\phi_0$ is 1/1000 which is weakly informative (a low $\phi$ value means $\sigma$ is high). Lastly, I specify that both the a and the b parameters for the Gamma distribution of $\phi$'s prior distribution are 0.1. Lower values of a and b lead to a less informative prior. Below are the prior distributions of $\mu$ and $\phi$, along with the likelihood function. \
+
+$\mu \sim N(\mu_0, \sqrt{1/\phi_0})$\
+So, $\mu \sim N(85, 1000)$.\
+
+I specify that $\phi$ follows a Gamma distribution because the Gamma distribution is valid for values greater than 0 which is ideal for both $\sigma$ and $\phi$ values, and it is possible to derive a weakly informative prior with low parameter values (a = b = 0.1).
+
+$\phi \sim Gamma(a, b)$\
+So, $\phi \sim Gamma(0.1, 0.1)$.\
+
+$Y_{i} | \mu, \phi \sim N(\mu, \sigma)$ \
+
+In order to implement the Gibbs sampler algorithm to estimate $\mu$ and $\phi$, I found the conditional posterior distributions from which I ultimately sampled in the Gibbs sampler. Below are the full posterior, and both conditional posterior distributions for $\mu$ and $\phi$. \
+
+$\pi(\mu, \phi | y_1, ... , y_n) \propto \pi(\mu) \pi(\phi) \cdot \prod_{i=1}^{n} f(y_i | \mu, \phi)$.\
+$\pi(\mu, \phi | y_1, ... , y_n) \propto e^\frac{{\phi_0 \cdot (\mu - \mu_0)^2}}{2} \cdot \phi^{a - 1}e^{-b\phi}$.\
+$\pi(\mu, \phi | y_1, ... , y_n) \propto \prod_{i=1}^{n} \phi^{1/2}e^\frac{{\phi \cdot (y_i - \mu)^2}}{2}$.\
+
+Full conditional distributions: \
+$\pi(\phi | \mu, y_1, ..., y_n) \propto \pi(\phi)f(y_1, ..., y_n | \phi, \mu)$\
+$\pi(\phi | \mu, y_1, ..., y_n) \propto \phi^{(n/2+a) - 1} \cdot e^{-\phi \cdot 1/2 \cdot \sum_{i=1}^{n} (y_i - \mu)^2 + b}$\
+
+$\pi(\mu | \phi, y_1, ..., y_n) \propto \pi(\mu)f(y_1, ..., y_n | \phi, \mu)$\
+$\pi(\mu | \phi, y_1, ..., y_n) \propto e^{-\frac{\phi_0 + n\phi}{2} \cdot (\mu - \frac{\mu_0\phi_0 + n\bar{y}\phi}{\phi_0 + n\phi})^2}$\
+
+Once the conditional posteriors are derived, I sample a $\mu_i$ given the observed data and the $\phi$ value. Then I sample a $\phi_i$ given the previous $\mu_i$ and the observed data. This pair is added to my collected simulated data. The $\phi_i$ value is updated for the following $\mu_{i+1}$ draw. I repeat this process 5,000 times. \
+
+As seen by figures 1 and 2, both distributions (for $\phi$ and $\mu$) converge after roughly 100 iterations which indicates the proceeding $\mu$ and $\phi$ values are relatively accurate. So, we get rid of the first 100 iterations of our data set to conduct inference. \
+
+To check if the observed data is consistent with our predicted data from the model, we implement posterior predictive checking. Figure 3 depicts the posterior predictive distribution centered around 87. Figure 4 depicts the observed data centered around 87. Since the center and the spread of the distributions are roughly similar, so we conclude that our model is consistent with the observed data.
+
+```{r, echo=FALSE, fig.cap="Mu converges after a relatively small amount of iterations.", , fig.width=3, fig.height=2, message=FALSE}
+mcmc_draws$row <- seq(1,S)
+# convergence can be seen here for mu
+ggplot(mcmc_draws) +
+  geom_line(aes(x=row, y=mu)) +
+  labs(title=c("Trace Plot - Mu"), x=c("Iteration Number"), y=c("Mu Value"))
+```
+
+```{r, echo=FALSE, fig.cap="Phi converges after a relatively small amount of iterations.", , fig.width=3, fig.height=2}
+# convergence can be seen here for phi
+ggplot(mcmc_draws) +
+  geom_line(aes(x=row, y=phi)) +
+  labs(title=c("Trace Plot - Phi"), x=c("Iteration Number"), y=c("Phi Value"))
+```
+
+```{r, echo=FALSE, fig.cap="Histogram of the posterior predictive distribution.", fig.width=3, fig.height=2}
+# Posterior predictive check
+postpred_sim <- function(j){
+  rnorm(29, mean = mcmc_draws[j, "mu"],
+        sd = mcmc_draws[j, "phi"])
+}
+
+ypred <- t(sapply(1:S, postpred_sim))
+
+# must get the max
+postpred_max <- apply(ypred, 1, max)
+
+ggplot() +
+  geom_histogram(aes(x=postpred_max)) + 
+  labs(title="Posterior Predictive Distribution", x="Simulated Test Score", y="Frequency")
+```
+
+```{r, echo=FALSE, fig.cap="Histogram of the observed test scores.", , fig.width=3, fig.height=2}
+ggplot() +
+  geom_histogram(aes(x=y), binwidth=2) + 
+  labs(title="Distribution of Observed Data", x="Observed Test Score", y="Frequency")
+```
+
+
+# Results
+
+The mean value for $\mu$, the average exam 1 test score, is 87.28 with a standard deviation of 1.68 and the mean value for the $\sigma$, the standard deviation of exam 1 test scores, is 8.88 with a standard deviation of 1.24. There is a 90% chance the true $\mu$ is between 84.42981 and 90.03762, and a 90% chance that the true $\phi$ is between 7.189156 and 11.269205. Figure 5 shows the posterior distribution of $\mu$ values vs. standard deviation values. Figure 6 shows the posterior distribution of $\mu$ values.\
+
+The predicted 90% prediction interval for a random student in the class is (73.06, 102.03). So, there is a 90% chance that the test score for this student is between 73.06 and 102.03. \
+
+```{r, echo=FALSE, fig.cap="Mu is centered roughly around 87.3 and sigma is centered roughly around 8.9.", , fig.width=3, fig.height=2}
+no_burn <- mcmc_draws[-c(1:100),]
+# Get rid of burn and view mu vs. phi
+ggplot(no_burn) +
+  geom_point(aes(x=mu, y=sqrt(1/phi)), size=.5, alpha=.3) + 
+  labs(title=c("Scatterplot of Mu vs. Sigma"), x=c("Mu"), y=c("Sigma"))
+```
+
+```{r, echo=FALSE, fig.cap="Mu is centered around 87.3.", fig.width=3, fig.height=2, error=FALSE, warning=FALSE, message=FALSE}
+# histogram of counts of mu
+ggplot(no_burn) +
+  geom_histogram(aes(x=mu)) + 
+  labs(title=c("Histogram of Mu Values"), x=c("Mu Value"), y=c("Frequency"))
+```
+
+# Discussion
+
+Using the Gibbs sampler, I was able to produce an estimate for the mean exam 1 score in Professor Adam Loy's Stat 120 class. The estimated mean exam 1 score is 87.28. Comparing the Gibbs sampler posterior estimate with the raw mean of the data (87.27), we see that they are very similar. This is due in large part to the weakly informative priors we started with. \
+
+One of the main reasons for using weakly informative priors was the ability to change them later if the posterior distribution didn't seem correct. However, the posterior results seem reasonable so we are able to keep the weakly informative priors.\
+
+There are some limitations to this analysis. One such limitation is that we can only use this to conduct inference on Adam Loy's exam 1 test scores. We can't use this analysis to conduct meaninglful inference on tests in other classes. Another limitation is that our original sample size is relatively small. Because of this small sample size, it's important to recognize that the data is more likely to be biased For example, the proportion of the class with high-achieving students may be higher than average. In the future, it would be beneficial to gather a larger sample of scores, potentially from multiple terms of exam 1 test scores from Professor Adam Loy's class.\
+
+\newpage
+
+# Appendix
+
+```{r}
+# data from Adam's stat 120 class
+y <- scores$score
+n <- length(y) # include length to speed up algorithm
+# Prior specification
+mu0  <- 85
+phi0 <- 1/1000 # weak value of phi
+a    <- 0.1 # weak value of a
+b    <- 0.1 # weak value of b
+# Initial parameter values
+mu  <- mean(y)
+s2  <- var(y)
+phi <- 1 / s2
+# Create empty S x p matrix for MCMC draws
+S                    <- 5000
+mcmc_draws           <- matrix(NA, nrow = S, ncol = 2)
+colnames(mcmc_draws) <- c("mu", "phi")
+```
+
+```{r}
+for(i in 1:S) {
+  # sample from mu | s2, y
+  A   <- sum(y) * phi + mu0 * phi0
+  B   <- n * phi + 1 * phi0
+  mu  <- rnorm(1, A/B, 1/sqrt(B))
+  
+  # sample from s2 | mu, y
+  shape <- n / 2 + a
+  rate  <- (sum((y - mu)^2) / 2) + b
+  phi   <- rgamma(1, shape, rate)
+  
+  # Store the draws
+  mcmc_draws[i, ] <- c(mu, phi)
+}
+```
+
+```{r}
+# mutate mcmc_draws to data.frame object to use ggplot
+mcmc_draws <- data.frame(mcmc_draws)
+
+# mu vs. phi scatterplot
+ggplot(mcmc_draws) +
+  geom_point(aes(x=mu, y=phi))
+```
+
+```{r}
+# transformed phi vs. mu, this shows mu vs. sigma
+ggplot(mcmc_draws) +
+  geom_point(aes(x=mu, y=sqrt(1/phi)))
+```
+
+```{r}
+# add new column that represent iteration number
+mcmc_draws$row <- seq(1,S)
+
+# convergence can be seen here for mu
+# trace plot for mu
+ggplot(mcmc_draws) +
+  geom_line(aes(x=row, y=mu))
+
+# convergence can be seen here for phi
+# trace plot for phi
+ggplot(mcmc_draws) +
+  geom_line(aes(x=row, y=phi))
+```
+
+```{r}
+# posterior predictive check
+
+# check length of observed data
+length(y)
+
+postpred_sim <- function(j){
+  rnorm(29, mean = mcmc_draws[j, "mu"],
+        sd = mcmc_draws[j, "phi"])
+}
+
+ypred <- t(sapply(1:S, postpred_sim))
+
+# must get the max
+postpred_max <- apply(ypred, 1, max)
+
+ggplot() +
+  geom_histogram(aes(x=postpred_max))
+
+ggplot() +
+  geom_histogram(aes(x=y), binwidth=2)
+```
+
+
+```{r}
+# get rid of first 100 iterations, not totally necessary but it's safer
+no_burn <- mcmc_draws[-c(1:100),]
+
+# Get rid of burn and view mu vs. phi scatterplot (similar to original)
+ggplot(no_burn) +
+  geom_point(aes(x=mu, y=phi))
+
+# histogram of counts of mu
+ggplot(no_burn) +
+  geom_histogram(aes(x=mu))
+```
+
+```{r}
+# Metrics
+quantile(no_burn$mu)
+quantile(sqrt(1/no_burn$phi))
+
+# standard deviation values for both mu and sigma
+sd(no_burn$mu)
+sd(sqrt(1/no_burn$phi))
+```
+
+```{r}
+# interval for mean value of the scores
+quantile(no_burn$mu, probs = c(.05, .95))
+quantile(sqrt(1/no_burn$phi), probs = c(.05, .95))
+```
+
+
+```{r}
+# Predict for random student by creating a random sample with the 
+# estimated mu and sigma values. Calculate 90% prediction interval.
+rand_samps <- rnorm(S, mean = 87.28307, 8.874542)
+quantile(rand_samps, probs = c(.05, .95))
+```

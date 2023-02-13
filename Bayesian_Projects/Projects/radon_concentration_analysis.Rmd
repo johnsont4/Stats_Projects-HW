@@ -1,0 +1,334 @@
+---
+title: 'Case Study 2: Radon Concentration Analysis'
+author: "Teagan Johnson"
+date: "2022-11-08"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(runjags)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+```
+
+```{r, include=FALSE}
+radon <- read.csv("https://aloy.rbind.io/data/radon.csv")
+```
+
+```{r, include=FALSE}
+modelString <-"model {
+## sampling
+for (i in 1:N){
+   y[i] ~ dnorm(mu_j[county[i]], invsigma2)
+}
+## priors
+for (j in 1:J){
+   mu_j[j] ~ dnorm(mu, invtau2)
+}
+invsigma2 ~ dgamma(a_s, b_s)
+sigma <- sqrt(pow(invsigma2, -1))
+## hyperpriors
+mu ~ dnorm(mu0, g0)
+invtau2 ~ dgamma(a_t, b_t)
+tau <- sqrt(pow(invtau2, -1))
+}
+"
+```
+
+```{r, include=FALSE}
+y <- radon$log.radon
+county <- radon$county
+N <- length(y)
+J <- length(unique(county))
+the_data <- list(y = y, county = county,
+                 N = N, J = J,
+                 mu0 = 0, g0 = .04,  # prior parameters
+                 a_t = 1, b_t = .01,  # hyperparameters
+                 a_s = 1, b_s = .01)  # hyperparameters
+```
+
+```{r, include=FALSE}
+posterior <- run.jags(
+  modelString,
+  n.chains = 1,
+  data = the_data,
+  monitor = c("mu", "tau", "mu_j", "sigma"),
+  adapt = 1000,
+  burnin = 5000,
+  sample = 5000,
+  silent.jags = TRUE
+)
+```
+
+# Introduction
+
+Breathing radon over time increases your risk of lung cancer. Radon is the second leading cause of lung cancer in the United States. In this study, I aim to estimate both the county-level and state-level average radon concentrations for Minnesota. I also identify the counties with unusually high average radon concentration values. I am given a dataset with radon concentrations for 919 households across 85 different counties in Minnesota (radon concentrations are logged in the dataset - log pCi/L -, so I will conduct my analysis with this in mind). To calculate the estimations, I implement a partial-pooling normal hierarchical model. \
+
+Normal hierarchical models provide a way to calculate estimates for $\mu$ and $\sigma$ given that there are clear groups in the sample of interest. In our case, the counties act as the distinct groups. The partial-pooling hierarchical in particular is an excellent method that finds middle ground between completely separate analyses over the different groups vs. assuming the groups are identical with respect the response variable (radon concentration, in our case). Therefore, it is a logical choice to implement a normal hierarchical partial-pooling model to estimate the mean radon concentration at both a state and county level. \
+
+# Methods
+
+Before we implement the hierarchical model, we need to specify priors for $\mu_j$, the mean radon concentration for county $j$, and $\sigma$, the standard deviation for the mean radon concentration across all counties. We assume a common value of $\sigma$ across all counties for simplicity and ease of understanding. A full report may specify priors for each $\sigma_j$. Since we're implementing a partial-pooling hierarchical model, we must specify two stages of priors. \
+
+Because I have very little prior knowledge of radon concentration, I opt to use weakly informative priors for both $\mu_j$ and $\sigma$. First, we specify our sampling model. \
+
+Sampling, for $j = 1, 2, ..., 84, 85$ and $i = 1, 2, ..., n_i$: \
+$Y_{ij} | \mu_j, \sigma \sim N(\mu_j, \sigma)$. \
+
+Next, we set up a prior distribution for the 85 mean parameters ($\mu_1, \mu_2, ..., \mu_{85}$) and the shared $\sigma$. First we'll specify the $\mu_j$ parameters. Since each county is located in Minnesota, it is reasonable to believe that the mean radon concentrations are similar across counties. So: \
+For $\mu_j$ where $j = 1, 2, ..., 84, 85$ (Stage 1 prior): \
+$\mu_j | \mu, \tau \sim N(\mu, \tau)$. \
+
+For $\mu$ and $\tau$ (Stage 2 priors), we use weakly informative priors: \
+$\mu \sim N(0, 4)$. I believe the mean radon concentration is centered around 0 with very low confidence, so I set the SD to a relatively high value of 4. The house with the highest radon concentration is a bit less than 4, so this ensures no possible values are excluded. \
+$\frac{1}{\tau^2} \sim$ Gamma(0.1, 0.1). Setting $a$ and $b$ to 0.1 will create a weakly informative Gamma prior for $\tau$. \
+
+For $\sigma$: \
+$\frac{1}{\sigma^2}$ Gamma(0.1, 0.1). Similar to the stage 2 prior above, we set $a$ and $b$ to be 0.1 in order to create a weakly informative Gamma prior for $\sigma$. \
+
+Now that our priors are set, we are able to create our model. We sample 5000 values of each $\mu_j$. \
+
+Before conducting analyses, we must analyze the MCMC diagnostics to ensure convergence. We see in Figure 1 that $\tau$ converges after roughly 100 iterations in the trace plot. We also see $\tau$ achieves a low autocorrelation quickly. Both of these observations indicate good mixing of the chain, therefore indicating convergence of the MCMC chain for $\tau$. \
+
+```{r, echo=FALSE, fig.cap="Tau converges after 100 iterations as seen in the trace plot. The ACF plot shows a quick decrease in autocorrelation for tau.", message=FALSE, warning=FALSE, results="hide"}
+plot(posterior, vars = "tau")
+```
+
+Next we analyze the MCMC diagnostics for $\sigma$. We see in Figure 2 that $\sigma$ converges after roughly 100 iterations in the trace plot. We also see $\sigma$ achieves a low autocorrelation quickly. Both of these observations indicate good mixing of the chain, therefore indicating convergence of the MCMC chain for $\sigma$. \
+
+```{r, echo=FALSE, fig.cap="Sigma converges after 100 iterations as seen in the trace plot. The ACF plot shows a quick decrease in autocorrelation for Sigma.", message=FALSE, warning=FALSE, results="hide"}
+plot(posterior, vars = "sigma")
+```
+
+Now we'll analyze the trace plot for $\mu$ to ensure convergence. Figure 3 shows the trace plot for $\mu_{43}$ (randomly selected) and see that it converges after roughly 100 iterations. This convergence indicates good mixing of the chain. \
+
+```{r, echo=FALSE, fig.cap="Mu converges after 100 iterations as seen in the trace plot.", fig.width=3, fig.height=2, message=FALSE, warning=FALSE, results="hide"}
+mcmc_draws <- data.frame(posterior$mcmc[[1]][,1], row = seq(1,5000))
+
+# convergence can be seen here for mu
+ggplot(mcmc_draws) +
+  geom_line(aes(x=row, y=var1)) +
+  labs(title=c("Trace Plot - Mu"), x=c("Iteration Number"), y=c("Mu Value"))
+```
+
+Lastly, we'll analyze the trace plot for the mean value of one random county, $\mu_j$. We assume that a set of diagnostics for one county is a sufficient indicator of each of the other counties' MCMC diagnostics. Figure 4 shows the trace plot for $\mu_{43}$ (randomly selected) and see that it converges after roughly 100 iterations. This convergence indicates good mixing of the chain. \
+
+```{r, echo=FALSE, fig.cap="Mu_43 converges after 100 iterations as seen in the trace plot.", fig.width=3, fig.height=2, message=FALSE, warning=FALSE, results="hide"}
+mcmc_draws_43 <- data.frame(posterior$mcmc[,43][[1]], row = seq(1,5000))
+
+# convergence can be seen here for mu_43
+ggplot(mcmc_draws_43) +
+  geom_line(aes(x=row, y=var1)) +
+  labs(title=c("Trace Plot - Mu_43"), x=c("Iteration Number"), y=c("Mu_43 Value"))
+```
+
+To check if the observed data is consistent with our predicted data from the hierarchical model, we implement posterior predictive checking. Figure 5 depicts the minimum log radon values of the posterior predictive distributions. The red line depicts the observed minimum log radon value. From this distribution, it is possible the observed value could be generated. Therefore, the model seems adequate for our data.\
+
+```{r, echo=FALSE, fig.cap="Histogram of the posterior predictive distribution.", fig.width=3, fig.height=2, warning=FALSE, results="hide", message=FALSE}
+# Posterior predictive check
+post_df <- data.frame(posterior$mcmc[[1]])
+
+postpred_sim <- function(j){
+  mu_j = rnorm(nrow(post_df), post_df$mu, post_df$tau)        # simulate mu_j
+  y_pred <- rnorm(nrow(post_df), mu_j, post_df$sigma)
+}
+
+ypred <- t(sapply(1:5000, postpred_sim))
+postpred_min <- apply(ypred, 1, min)
+
+ggplot(data = NULL, aes(x = postpred_min)) +
+  geom_histogram(binwidth = 0.15, fill="lightgrey", color="black") +
+  geom_vline(xintercept = min(radon$log.radon), color="red") +
+  labs(x= "Minimum Log Radon Value", title="Posterior Predictive Distribution of Minimum Log Radon Values")
+```
+
+Before conducting inference, we get rid of the first 100 iterations of each chain. This is oftentimes called a "burn-in" period that is cut in order to ensure convergence, and ultimately accurate inference. Our chains converge quickly which is why we only need to cut the first 100 iterations. \
+
+# Results
+
+Figure 7 shows the posterior distribution of the log(radon) values for each of the 85 counties. The mean log radon concentration for the counties is 1.2945670 log pCi/L with a SD of 0.2011945 log pCi/L. There is a 95% chance the true log radon concentration is between 0.9608215log pCi/L and 1.6116396 log pCi/L. \
+
+```{r, echo=FALSE, fig.cap="Distribution of radon concentrations for each county.", fig.width=5, fig.height=3, message=FALSE, warning=FALSE, results="hide"}
+mcmc_draws <- posterior$mcmc
+county_means <- list(county = unique(county), mean = unique(county))
+
+for (i in 1:(length(unique(county)))){
+  county_means$mean[i] <- mean(mcmc_draws[[1]][,i+2])
+}
+
+longer_post_df <- post_df %>%
+  pivot_longer(cols=!c(mu, tau), names_to = "County", values_to = "Radon_Measure")
+
+ggplot(longer_post_df) +
+  geom_boxplot(aes(x=County, y=Radon_Measure)) +
+  labs(title="Distribution of Mean Radon Concentrations for Each County", x="County Number", y="Radon Concentration")
+```
+
+Figure 8 shows the distribution of log radon concentrations for a single county (county-level results). We see the mean is roughly 1.25 and the plot shows a handful of outliers both above and below.
+
+```{r, echo=FALSE, fig.cap="Distribution of radon concentrations for county 45.", fig.width=3, fig.height=2, message=FALSE, warning=FALSE, results="hide"}
+county_43 <- longer_post_df %>%
+  filter(County == "mu_j.45.")
+ggplot(county_43) +
+  geom_boxplot(aes(x=County, y=Radon_Measure)) +
+  labs(title="Distribution of Mean Radon Concentrations for Each County", x="County Number", y="Radon Concentration")
+```
+
+
+The mean estimate for mu is 1.3115 log pCi/L with a SD of 0.04692 log pCi/L. So, there is a 95% chance that the mean radon concentration is between 1.219537 log pCi/L and 1.403463 log pCi/L. \
+
+We see the counties with the highest log radon concentrations are Blue Earth (1.701897 log pCi/L) with a SD of 0.18158 log pCi/L, Goodhue (1.655702 log pCi/L) with a SD of 0.17678 log pCi/L, and Freeborn (1.648925 log pCi/L) with a SD of 0.20696 log pCi/L. \
+
+# Discussion
+
+Using a partial-pooling normal hierarchical model, I was able to produce an estimate for both the county-level and state-level mean radon concentrations. See Figure 7 for the estimated means of each county. The estimated mean at the state-level is 1.3115 log pCi/L with a SD of 0.04692 log pCi/L. Comparing the state-level mean to the mean of the raw data (1.224623 log pCi/L), we see that they are relatively similar. This is due to our use of weakly informative priors which pushed the posterior towards the likelihood. \
+
+Studies have shown that high levels of radon concentration can lead to lung damage and other health issues. From this analysis, it would be wise for some of the counties with high radon concentrations (Blue Earth, Goodhue, Freeborn, etc.) to address this to ensure the health of their constituents. \
+
+One of the reasons for using weakly informative priors was the ability to change them later if the posterior distribution didn't seem correct. However, the posterior results seem reasonable so we are able to keep the weakly informative priors.\
+
+One limitation to this analysis is that we can only use this to conduct inference on the radon concentrations of the counties in Minnesota that we were given. We can't use this analysis to conduct meaningful inference on tests in other states or countries. \
+
+\newpage
+
+# Appendix
+
+First, we read in the radon data.
+```{r}
+radon <- read.csv("https://aloy.rbind.io/data/radon.csv")
+```
+
+Then we create our model using JAGS. We use a normal hierarchical model.
+```{r}
+modelString <-"model {
+## sampling
+for (i in 1:N){
+   y[i] ~ dnorm(mu_j[county[i]], invsigma2)
+}
+## priors
+for (j in 1:J){
+   mu_j[j] ~ dnorm(mu, invtau2)
+}
+invsigma2 ~ dgamma(a_s, b_s)
+sigma <- sqrt(pow(invsigma2, -1))
+## hyperpriors
+mu ~ dnorm(mu0, g0)
+invtau2 ~ dgamma(a_t, b_t)
+tau <- sqrt(pow(invtau2, -1))
+}
+"
+```
+
+Our data is processed so that it can be put into the model.
+```{r}
+y <- radon$log.radon
+county <- radon$county
+N <- length(y)
+J <- length(unique(county))
+the_data <- list(y = y, county = county,
+                 N = N, J = J,
+                 mu0 = 0, g0 = .04,  # prior parameters
+                 a_t = 1, b_t = .01,  # hyperparameters
+                 a_s = 1, b_s = .01)  # hyperparameters
+```
+
+We run our model with the data and specify some other parameters.
+```{r}
+posterior <- run.jags(
+  modelString,
+  n.chains = 1,
+  data = the_data,
+  monitor = c("mu", "tau", "mu_j", "sigma"),
+  adapt = 1000,
+  burnin = 5000,
+  sample = 5000,
+  silent.jags = TRUE
+)
+```
+
+We plot the trace plot and ACF plot to ensure MCMC convergence.
+```{r}
+plot(posterior, vars = "tau")
+plot(posterior, vars = "sigma")
+```
+
+We check the mean radon concentration for each county.
+```{r}
+mcmc_draws <- posterior$mcmc
+county_means <- list(county = unique(county), mean = unique(county))
+
+for (i in 1:(length(unique(county)))){
+  county_means$mean[i] <- mean(mcmc_draws[[1]][,i])
+}
+
+ggplot() +
+  geom_bar(aes(x=county_means$county, y=county_means$mean), stat="identity")
+```
+
+We check the convergence for $\mu$, the universal mean.
+```{r}
+mcmc_draws <- data.frame(posterior$mcmc[[1]][,1], row = seq(1,5000))
+
+# convergence can be seen here for mu
+ggplot(mcmc_draws) +
+  geom_line(aes(x=row, y=var1)) +
+  labs(title=c("Trace Plot - Mu_43"), x=c("Iteration Number"), y=c("Mu_43 Value"))
+```
+
+We check the convergence of a random $\mu_j$ which happens to be $\mu_43$.
+```{r}
+mcmc_draws_43 <- data.frame(posterior$mcmc[,43][[1]], row = seq(1,5000))
+
+# convergence can be seen here for mu_43
+ggplot(mcmc_draws_43) +
+  geom_line(aes(x=row, y=var1)) +
+  labs(title=c("Trace Plot - Mu_43"), x=c("Iteration Number"), y=c("Mu_43 Value"))
+```
+
+We use a posterior predictive check and compare the posterior predicitve distribution to the observed data.
+
+```{r}
+# Posterior predictive check
+postpred_sim <- function(j){
+  rnorm(919, mean = mcmc_draws[[1]][j])
+}
+
+ypred <- t(sapply(1:5000, postpred_sim))
+
+ggplot() +
+  geom_histogram(aes(x=ypred)) + 
+  labs(title="Posterior Predictive Distribution", x="Simulated Radon Concentration", y="Frequency")
+```
+
+```{r}
+radon %>% ggplot() +
+  geom_histogram(aes(x=log.radon)) + 
+  labs(title="Distribution of Observed Radon Concentration", x="Radon Concentration", y="Frequency")
+```
+
+We get the mean radon concentration value across all counties.
+```{r}
+quantile(county_means$mean)
+sd(county_means$mean)
+quantile(county_means$mean, probs = (c(.05, .95)))
+```
+
+We produce the summary statistics for the MCMC data.
+```{r}
+# mu 1.3115 mean, 0.04692 SD
+summary(posterior$mcmc)
+```
+
+We find the most unusually high counties.
+```{r}
+data.frame(county_means) %>% filter(mean > 1.6)
+```
+
+
+
+
+
